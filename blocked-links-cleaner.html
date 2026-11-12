@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link List Cleaner</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b1020; --panel:#131c31; --line:#293653; --text:#eef3ff; --muted:#9eacc7; --accent:#7c9cff; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:radial-gradient(ellipse at top,#172747 0%,var(--bg) 58%); color:var(--text); font:16px/1.5 system-ui,sans-serif; }
+  .wrap { position:relative; z-index:1; width:min(760px,calc(100% - 32px)); margin:52px auto; }
+  header { text-align:center; margin-bottom:26px; }
+  h1 { margin:0 0 8px; font-size:clamp(28px,5vw,42px); letter-spacing:-1px; }
+  .brand { color:#9db5ff; font-weight:900; letter-spacing:2px; font-size:13px; }
+  .panel { background:rgba(19,28,49,.94); border:1px solid var(--line); border-radius:20px; padding:clamp(20px,4vw,32px); box-shadow:0 18px 60px #0006; }
+  label { display:block; margin:18px 0 8px; font-weight:700; }
+  select,input[type=file] { width:100%; border:1px solid #405174; background:#0d1528; color:var(--text); border-radius:11px; padding:13px; font:inherit; }
+  input[type=file] { padding:11px; }
+  button { border:0; border-radius:11px; padding:13px 18px; font:700 15px system-ui; cursor:pointer; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .primary { margin-top:20px; width:100%; color:#081126; background:linear-gradient(110deg,#9cb4ff,#7ce2d0); }
+  .download { margin-top:12px; width:100%; color:#eaf0ff; background:#293b61; border:1px solid #50658e; }
+  .hint,.status { color:var(--muted); font-size:14px; }
+  .status { min-height:24px; margin-top:16px; }
+  .stats { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+  .stat { background:#0d1528; border:1px solid var(--line); border-radius:10px; padding:9px 12px; font-size:14px; }
+  footer { text-align:center; margin-top:22px; color:#9db5ff; font-size:12px; font-weight:900; letter-spacing:2px; }
+  .mini { margin-top:16px; text-align:center; font-size:11px; color:#7183a7; letter-spacing:1px; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="brand">DSC.GG/ILOVESTUDYING</div>
+    <h1>Link List Cleaner</h1>
+    <div class="hint">Upload a .txt list, choose a filter profile, and export the cleaned list.</div>
+  </header>
+  <section class="panel">
+    <label for="blocker">Select blocker profile</label>
+    <select id="blocker">
+      <option value="GoGuardian">GoGuardian</option>
+      <option value="Securly">Securly</option>
+      <option value="iBoss">iBoss</option>
+      <option value="Lightspeed">Lightspeed</option>
+      <option value="Linewize">Linewize</option>
+      <option value="Cisco Umbrella">Cisco Umbrella</option>
+      <option value="Blocksi">Blocksi</option>
+      <option value="ContentKeeper">ContentKeeper</option>
+      <option value="AristotleK12">AristotleK12</option>
+      <option value="FortiGuard">FortiGuard</option>
+      <option value="Palo Alto">Palo Alto</option>
+      <option value="Senso Cloud">Senso Cloud</option>
+      <option value="Deledao">Deledao</option>
+      <option value="Sophos">Sophos</option>
+      <option value="Barracuda">Barracuda</option>
+      <option value="LanSchool">LanSchool</option>
+      <option value="DNSFilter">DNSFilter</option>
+      <option value="Qustodio">Qustodio</option>
+    </select>
+
+    <label for="file">Choose your .txt file</label>
+    <input id="file" type="file" accept=".txt,text/plain">
+    <div class="hint">Each line is checked independently. Lines that contain a URL whose hostname matches a domain marked blocked in the selected profile are removed. Other lines are kept as-is.</div>
+
+    <button class="primary" id="process">Process text file</button>
+    <div class="status" id="status" role="status" aria-live="polite">Choose a file to begin.</div>
+    <div class="stats" id="stats" hidden>
+      <div class="stat" id="kept"></div>
+      <div class="stat" id="removed"></div>
+    </div>
+    <button class="download" id="download" disabled>Download cleaned .txt</button>
+  </section>
+</main>
+<script>
+const blocked = {
+  "GoGuardian":["fastly.jsdelivr.net","testingcf.jsdelivr.net","esm.sh","cdn.esm.sh","cdn.statically.io","raw.githack.com","rawcdn.githack.com","ghproxy.net"],
+  "Securly":["fastly.jsdelivr.net","testingcf.jsdelivr.net","raw.githack.com","rawcdn.githack.com","ghproxy.net"],
+  "iBoss":["cdn.jsdelivr.net","esm.sh","cdn.esm.sh","cdn.statically.io","raw.githack.com","rawcdn.githack.com","raw.githubusercontent.com"],
+  "Lightspeed":["esm.sh","cdn.esm.sh","cdn.statically.io","raw.githack.com","rawcdn.githack.com","ghproxy.net"],
+  "Linewize":["fastly.jsdelivr.net","testingcf.jsdelivr.net","cdn.statically.io","raw.githack.com","rawcdn.githack.com"],
+  "Cisco Umbrella":["esm.sh","cdn.esm.sh","raw.githack.com","rawcdn.githack.com"],
+  "Blocksi":[],
+  "ContentKeeper":["esm.sh","cdn.esm.sh","raw.githack.com"],
+  "AristotleK12":["fastly.jsdelivr.net","testingcf.jsdelivr.net","esm.sh","cdn.esm.sh","cdn.statically.io","raw.githack.com","rawcdn.githack.com","raw.githubusercontent.com"],
+  "FortiGuard":["ghproxy.net"],
+  "Palo Alto":[],
+  "Senso Cloud":["ghproxy.net"],
+  "Deledao":["raw.githack.com","rawcdn.githack.com"],
+  "Sophos":[],
+  "Barracuda":[],
+  "LanSchool":[],
+  "DNSFilter":[],
+  "Qustodio":[]
+};
+
+const fileInput = document.getElementById('file');
+const blockerSelect = document.getElementById('blocker');
+const statusEl = document.getElementById('status');
+const downloadBtn = document.getElementById('download');
+const stats = document.getElementById('stats');
+let outputText = '';
+let outputName = 'cleaned-links.txt';
+
+function extractHosts(line) {
+  const found = [];
+  const urlPattern = /https?:\/\/[^\s<>"']+/gi;
+  for (const match of line.matchAll(urlPattern)) {
+    let candidate = match[0].replace(/[),.;\]}]+$/g, '');
+    try { found.push(new URL(candidate).hostname.toLowerCase()); } catch (_) {}
+  }
+  return found;
+}
+
+document.getElementById('process').addEventListener('click', async () => {
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) { statusEl.textContent = 'Please choose a .txt file first.'; return; }
+  if (!file.name.toLowerCase().endsWith('.txt') && file.type !== 'text/plain') {
+    statusEl.textContent = 'Please select a plain-text .txt file.'; return;
+  }
+  const text = await file.text();
+  const lines = text.split(/\r\n|\n|\r/);
+  const blockedDomains = blocked[blockerSelect.value] || [];
+  const keptLines = [];
+  let removedCount = 0;
+
+  for (const line of lines) {
+    const hosts = extractHosts(line);
+    const shouldRemove = hosts.some(host =>
+      blockedDomains.some(domain => host === domain || host.endsWith('.' + domain))
+    );
+    if (shouldRemove) removedCount++;
+    else keptLines.push(line);
+  }
+
+  outputText = keptLines.join('\n');
+  outputName = file.name.replace(/\.txt$/i, '') + '-cleaned.txt';
+  document.getElementById('kept').textContent = `Kept: ${keptLines.length} lines`;
+  document.getElementById('removed').textContent = `Removed: ${removedCount} lines`;
+  stats.hidden = false;
+  downloadBtn.disabled = false;
+  statusEl.textContent = `Finished using the ${blockerSelect.value} profile.`;
+});
+
+downloadBtn.addEventListener('click', () => {
+  const blob = new Blob([outputText], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = outputName;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
